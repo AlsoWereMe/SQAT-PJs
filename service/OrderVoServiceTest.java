@@ -86,6 +86,7 @@ public class OrderVoServiceTest {
         List<Order> emptyList = Arrays.asList();
         List<OrderVo> result = orderVoService.returnVo(emptyList);
         assertTrue(result.isEmpty());
+
     }
 
     // Helper methods
