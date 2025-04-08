@@ -1,9 +1,10 @@
-package com.demo.service;
+package com.demo.pj1.demo.service;
 
 import com.demo.dao.OrderDao;
 import com.demo.dao.VenueDao;
 import com.demo.entity.Order;
 import com.demo.entity.Venue;
+import com.demo.service.OrderService;
 import com.demo.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
