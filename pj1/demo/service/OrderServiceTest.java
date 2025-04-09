@@ -27,7 +27,61 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-
+/**
+ * <dependency>
+ *             <groupId>org.junit.platform</groupId>
+ *             <artifactId>junit-platform-launcher</artifactId>
+ *             <version>1.8.2</version>
+ *             <scope>test</scope>
+ *         </dependency>
+ *         <!-- JUnit Platform Engine -->
+ *         <dependency>
+ *             <groupId>org.junit.platform</groupId>
+ *             <artifactId>junit-platform-engine</artifactId>
+ *             <version>1.9.2</version>
+ *             <scope>test</scope>
+ *         </dependency>
+ *
+ *         <!-- JUnit Platform Commons -->
+ *         <dependency>
+ *             <groupId>org.junit.platform</groupId>
+ *             <artifactId>junit-platform-commons</artifactId>
+ *             <version>1.9.2</version>
+ *             <scope>test</scope>
+ *         </dependency>
+ *         <dependency>
+ *             <groupId>org.junit.jupiter</groupId>
+ *             <artifactId>junit-jupiter</artifactId>
+ *             <version>RELEASE</version>
+ *             <scope>test</scope>
+ *         </dependency>
+ *         <dependency>
+ *             <groupId>org.junit.jupiter</groupId>
+ *             <artifactId>junit-jupiter</artifactId>
+ *             <version>5.5.2</version>
+ *             <scope>test</scope>
+ *         </dependency>
+ *         <dependency>
+ *             <groupId>org.mockito</groupId>
+ *             <artifactId>mockito-core</artifactId>
+ *             <version>5.12.0</version> <!-- 使用最新稳定版 -->
+ *             <scope>test</scope>
+ *         </dependency>
+ *         <!-- ByteBuddy -->
+ *         <dependency>
+ *             <groupId>net.bytebuddy</groupId>
+ *             <artifactId>byte-buddy</artifactId>
+ *             <version>1.14.5</version>
+ *         </dependency>
+ *
+ *         <!-- ByteBuddy Agent -->
+ *         <dependency>
+ *             <groupId>net.bytebuddy</groupId>
+ *             <artifactId>byte-buddy-agent</artifactId>
+ *             <version>1.14.5</version>
+ *             <scope>test</scope>
+ *         </dependency>
+ **/
 public class OrderServiceTest {
     @InjectMocks
     private OrderServiceImpl orderService;
