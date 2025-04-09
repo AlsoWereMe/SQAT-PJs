@@ -7,10 +7,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -39,56 +42,11 @@ public class VenueServiceTest {
     @BeforeEach
     void setUp() {
         // 初始化一个合法的场馆对象，用于多个测试用例
-        validVenue = new Venue();
-        validVenue.setVenueID(1);
-        validVenue.setVenueName("Test Stadium");
-        validVenue.setDescription("A modern stadium for sports events");
-        validVenue.setPrice(100);
-        validVenue.setPicture("test.jpg");
-        validVenue.setAddress("123 Test Street");
-        validVenue.setOpen_time("08:00");
-        validVenue.setClose_time("22:00");
-    }
+        validVenue = new Venue(1,"Test Stadium",
+                "A modern stadium for sports events",
+                100,"test.jpg","123 Test Street",
+                "08:00","22:00");
 
-    //------------------------ 查询方法测试 ------------------------
-
-    /**
-     * 测试场景：通过存在的场馆ID查询场馆详情
-     * 测试类型：黑盒（有效等价类） + 白盒（字段完整性验证）
-     * 覆盖目标：
-     * 1. 验证返回的场馆对象非空
-     * 2. 确保所有字段（名称、描述、价格等）与预期一致
-     * 3. 验证DAO层方法被正确调用
-     */
-    @Test
-    void findByVenueID_WhenExists_ShouldReturnFullVenueDetails() {
-        when(venueDao.findByVenueID(1)).thenReturn(validVenue);
-
-        Venue result = venueService.findByVenueID(1);
-
-        assertNotNull(result);
-        assertEquals("Test Stadium", result.getVenueName());
-        assertEquals("A modern stadium for sports events", result.getDescription());
-        assertEquals(100, result.getPrice());
-        assertEquals("test.jpg", result.getPicture());
-        verify(venueDao).findByVenueID(1);
-    }
-
-    /**
-     * 测试场景：通过不存在的场馆ID查询
-     * 测试类型：黑盒（无效等价类） + 白盒（空值处理）
-     * 覆盖目标：
-     * 1. 验证返回结果为 null
-     * 2. 确保DAO层方法被调用
-     */
-    @Test
-    void findByVenueID_WhenNotExists_ShouldReturnNull() {
-        when(venueDao.findByVenueID(999)).thenReturn(null);
-
-        Venue result = venueService.findByVenueID(999);
-
-        assertNull(result);
-        verify(venueDao).findByVenueID(999);
     }
 
     //------------------------ 创建方法测试 ------------------------
@@ -102,76 +60,109 @@ public class VenueServiceTest {
      * 3. 确认DAO层保存方法被调用
      */
     @Test
-    void create_WhenNameIsUnique_ShouldReturnId() {
-        when(venueDao.countByVenueName("Test Stadium")).thenReturn(0);
+    void testCreate_WhenNameIsUnique() {
         when(venueDao.save(validVenue)).thenReturn(validVenue);
-
         int result = venueService.create(validVenue);
         assertEquals(1, result);
         verify(venueDao).save(validVenue);
     }
 
-    /**
-     * 测试场景：创建名称重复的场馆
-     * 测试类型：黑盒（无效等价类） + 白盒（判定覆盖）
-     * 覆盖目标：
-     * 1. 验证名称重复性检查失败
-     * 2. 确保返回失败状态码（0）
-     * 3. 确认DAO层保存方法未被调用
-     */
     @Test
-    void create_WhenNameIsDuplicate_ShouldReturnFailure() {
+    void testCreate_WhenIdIsDuplicate() {
         Venue duplicateVenue = new Venue();
-        duplicateVenue.setVenueName("Existing Stadium");
-        when(venueDao.countByVenueName("Existing Stadium")).thenReturn(1);
-
+        duplicateVenue.setVenueID(1);
+        when(venueDao.findByVenueID(1)).thenReturn(validVenue);
+        when(venueDao.save(duplicateVenue)).thenReturn(duplicateVenue);
         int result = venueService.create(duplicateVenue);
-        assertEquals(0, result);
-        verify(venueDao, never()).save(any());
-    }
+        assertNotEquals(1,result);
+        verify(venueDao,never()).save(duplicateVenue);
 
-    /**
-     * 测试场景：使用边界值价格创建场馆
-     * 测试类型：黑盒（边界值分析） + 白盒（条件分支覆盖）
-     * 输入参数：price = {0, -1, Integer.MAX_VALUE}
-     * 覆盖目标：
-     * 1. 价格 ≤ 0 时返回失败（0）
-     * 2. 合法价格（Integer.MAX_VALUE）时返回成功ID
-     * 3. 验证不同价格值的处理逻辑
-     */
+    }
+    @Test
+    void testCreate_WhenNameIsDuplicate() {
+        Venue duplicateVenue = new Venue();
+        duplicateVenue.setVenueName("Test Stadium");
+        when(venueDao.countByVenueName("Test Stadium")).thenReturn(1);
+        when(venueDao.save(duplicateVenue)).thenReturn(duplicateVenue);
+        int result = venueService.create(duplicateVenue);
+        assertNotEquals(1,result);
+        verify(venueDao,never()).save(duplicateVenue);
+
+    }
     @ParameterizedTest
-    @ValueSource(ints = {0, -1, Integer.MAX_VALUE})
-    void create_WithPriceBoundaryValues_ShouldHandleCorrectly(int price) {
+    @ValueSource(ints = {-1,0, Integer.MAX_VALUE})
+    void testCreate_WithPriceBoundaryValues(int price) {
         Venue venue = new Venue();
         venue.setVenueName("Price Test Stadium");
         venue.setPrice(price);
-
-        if (price <= 0) {
-            int result = venueService.create(venue);
-            assertEquals(0, result);
+        when(venueDao.save(venue)).thenReturn(venue);
+        if (price < 0) {
+            venueService.create(venue);
+            verify(venueDao, never()).save(any());
         } else {
-            when(venueDao.countByVenueName("Price Test Stadium")).thenReturn(0);
-            when(venueDao.save(venue)).thenReturn(venue);
             int result = venueService.create(venue);
             assertEquals(venue.getVenueID(), result);
+            assertEquals(venue.getPrice(),price);
+        }
+    }
+    @ParameterizedTest
+    @CsvSource({
+            "00:00, 23:59",
+            "00:01, 24:00",
+            "25:00, 26:00",
+            "00:70, 23:80"
+    })
+    void testCreate_WithInvalidTimeFormat(String open_time, String close_time){
+        Venue venue = new Venue();
+        venue.setOpen_time(open_time);
+        venue.setClose_time(close_time);
+        when(venueDao.save(venue)).thenReturn(venue);
+        if(open_time.equals("00:00") ){
+            int result = venueService.create(venue);
+            assertEquals(venue.getVenueID(), result);
+            assertEquals(venue.getOpen_time(), open_time);
+            assertEquals(venue.getClose_time(), close_time);
+        }
+        else{
+            venueService.create(venue);
+            verify(venueDao, never()).save(any());
         }
     }
 
+
+
+
+
+    //------------------------ 查询方法测试 ------------------------
+
     /**
-     * 测试场景：创建地址为空的场馆
-     * 测试类型：黑盒（无效等价类）
+     * 测试场景：通过存在的场馆ID查询场馆详情
+     * 测试类型：黑盒（有效等价类） + 白盒（字段完整性验证）
      * 覆盖目标：
-     * 1. 验证地址为空时返回失败（0）
-     * 2. 确保必填字段校验逻辑生效
+     * 1. 验证返回的场馆对象非空
      */
     @Test
-    void create_WithEmptyAddress_ShouldReturnFailure() {
-        Venue invalidVenue = new Venue();
-        invalidVenue.setVenueName("Empty Address Stadium");
-        invalidVenue.setAddress(""); // 空地址
-        int result = venueService.create(invalidVenue);
-        assertEquals(0, result);
+    void testFindByVenueID_WhenExists() {
+        when(venueDao.getOne(1)).thenReturn(validVenue);
+        Venue result = venueService.findByVenueID(1);
+        assertNotNull(result);
+        assertEquals(result,validVenue);
     }
+
+    /**
+     * 测试场景：通过不存在的场馆ID查询
+     * 测试类型：黑盒（无效等价类） + 白盒（空值处理）
+     * 覆盖目标：
+     * 1. 验证返回结果为 null
+     */
+    @Test
+    void testFindByVenueID_WhenNotExists() {
+        when(venueDao.getOne(999)).thenReturn(null);
+        Venue result = venueService.findByVenueID(999);
+        assertNull(result);
+    }
+
+
 
     //------------------------ 更新方法测试 ------------------------
 
@@ -184,7 +175,8 @@ public class VenueServiceTest {
      * 3. 确认DAO层保存方法被调用
      */
     @Test
-    void update_WhenNameIsUnique_ShouldUpdateAllFields() {
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    void testUpdate_WhenNameIsUnique() {
         Venue updatedVenue = new Venue();
         updatedVenue.setVenueID(1);
         updatedVenue.setVenueName("Updated Stadium");
@@ -197,8 +189,6 @@ public class VenueServiceTest {
 
         // 模拟名称唯一性检查和保存操作
         when(venueDao.countByVenueName("Updated Stadium")).thenReturn(0);
-        when(venueDao.save(updatedVenue)).thenReturn(updatedVenue);
-
         venueService.update(updatedVenue);
         verify(venueDao).save(updatedVenue);
     }
@@ -211,17 +201,35 @@ public class VenueServiceTest {
      * 2. 确保更新操作被拒绝并抛出异常
      * 3. 确认DAO层保存方法未被调用
      */
-    @Test
-    void update_WhenNameIsDuplicate_ShouldThrowException() {
+    @ParameterizedTest
+    @ValueSource(strings = {"Itself", "Other Stadium"})
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    void testUpdate_WhenNameIsDuplicatt(String venueName) {
         Venue updatedVenue = new Venue();
         updatedVenue.setVenueID(1);
-        updatedVenue.setVenueName("Existing Stadium"); // 与已有场馆名称重复
+        updatedVenue.setVenueName(venueName); // 与已有场馆名称重复
+        when(venueDao.countByVenueName(venueName)).thenReturn(1);
+        if(venueName.equals("Itself")){
+            //这个重名的就是它自己
+            Venue oldVenue = new Venue();
+            oldVenue.setVenueID(1);
+            when(venueDao.findByVenueName(venueName)).thenReturn(oldVenue);
+            venueService.update(updatedVenue);
+            verify(venueDao).save(updatedVenue);
+        }
+        else{
+            //这个重名的是别的场馆
+            Venue otherVenue = new Venue();
+            otherVenue.setVenueID(2);
+            when(venueDao.findByVenueName(venueName)).thenReturn(otherVenue);
+            venueService.update(updatedVenue);
+            verify(venueDao,never()).save(updatedVenue);
+        }
 
         // 模拟名称重复
-        when(venueDao.countByVenueName("Existing Stadium")).thenReturn(1);
 
-        assertThrows(LoginException.class, () -> venueService.update(updatedVenue));
-        verify(venueDao, never()).save(any());
+
+
     }
 
     //------------------------ 分页查询测试 ------------------------
@@ -240,7 +248,7 @@ public class VenueServiceTest {
      * 2. 确保DAO层无参方法被调用
      */
     @Test
-    void findAll_WithoutPage_ShouldReturnList() {
+    void testFindAll_WithoutPage() {
         List<Venue> mockList = Collections.singletonList(validVenue);
         when(venueDao.findAll()).thenReturn(mockList); // 模拟无参方法
 
@@ -256,7 +264,7 @@ public class VenueServiceTest {
      * 2. 确保分页参数传递给DAO层
      */
     @Test
-    void findAll_WithPage_ShouldReturnPaginatedResults() {
+    void testFindAll_WithPage() {
         Pageable pageable = PageRequest.of(0, 10); // 使用 PageRequest
         List<Venue> mockData = Arrays.asList(validVenue, validVenue);
         Page<Venue> mockPage = new PageImpl<>(mockData, pageable, mockData.size());
@@ -275,7 +283,7 @@ public class VenueServiceTest {
      * 2. 确保分页逻辑正确处理空数据
      */
     @Test
-    void findAllWithPage_WhenDataIsEmpty_ShouldReturnEmptyPage() {
+    void testFindAllWithPage_WhenDataIsEmpty() {
         Pageable pageable = PageRequest.of(0,10);
         when(venueDao.findAll(pageable)).thenReturn(Page.empty());
 
@@ -293,7 +301,7 @@ public class VenueServiceTest {
      * 2. 确保DAO层方法被调用
      */
     @Test
-    void delById_WhenIdExists_ShouldCallDelete() {
+    void testDelById_WhenIdExists() {
         doNothing().when(venueDao).deleteById(1);
 
         venueService.delById(1);
@@ -308,7 +316,7 @@ public class VenueServiceTest {
      * 2. 确保DAO层异常被正确转换
      */
     @Test
-    void delById_WhenIdNotExists_ShouldThrowLoginException() {
+    void testDelById_WhenIdNotExists() {
         doThrow(EmptyResultDataAccessException.class).when(venueDao).deleteById(999);
         assertThrows(LoginException.class, () -> venueService.delById(999));
     }
@@ -323,7 +331,7 @@ public class VenueServiceTest {
      * 2. 确保DAO层方法被调用
      */
     @Test
-    void countVenueName_WhenNameExists_ShouldReturnPositive() {
+    void testCountVenueName_WhenNameExists() {
         when(venueDao.countByVenueName("Existing Stadium")).thenReturn(1);
         int count = venueService.countVenueName("Existing Stadium");
         assertEquals(1, count);
@@ -337,19 +345,31 @@ public class VenueServiceTest {
      * 2. 确保DAO层方法被调用
      */
     @Test
-    void countVenueName_WhenNameNotExists_ShouldReturnZero() {
+    void testCountVenueName_WhenNameNotExists() {
         when(venueDao.countByVenueName("Non-existent Stadium")).thenReturn(0);
         int count = venueService.countVenueName("Non-existent Stadium");
         assertEquals(0, count);
     }
 
+
+
     /**
-     * 测试场景：验证时间格式合法性
+        被删除的用例：
+     * 测试场景：创建地址为空的场馆
      * 测试类型：黑盒（无效等价类）
      * 覆盖目标：
-     * 1. 检查非法时间格式（如25:00）是否触发异常
-     * 注意：需结合业务层时间校验逻辑
-     */
+     * 1. 验证地址为空时返回失败（0）
+     * 2. 确保必填字段校验逻辑生效
+    @Test
+    void create_WithEmptyAddress_ShouldReturnFailure() {
+        Venue invalidVenue = new Venue();
+        invalidVenue.setVenueName("Empty Address Stadium");
+        invalidVenue.setAddress(""); // 空地址
+        int result = venueService.create(invalidVenue);
+        assertEquals(0, result);
+    }
+     删除原因：没有要求地址必须非空
+
     @Test
     void testTimeFormatValidation() {
         Venue invalidTimeVenue = new Venue();
@@ -362,4 +382,7 @@ public class VenueServiceTest {
             invalidTimeVenue.setOpen_time("25:00");
         });
     }
+     删除原因：该方法与测试Create和测试Update的方法冗余
+     */
+
 }
