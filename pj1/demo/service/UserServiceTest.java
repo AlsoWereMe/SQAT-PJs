@@ -17,7 +17,12 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-
+// <dependency>
+//     <groupId>org.mockito</groupId>
+//     <artifactId>mockito-junit-jupiter</artifactId>
+//     <version>3.12.4</version>
+//     <scope>test</scope>
+// </dependency>
 class UserServiceTest {
 
     @Mock
