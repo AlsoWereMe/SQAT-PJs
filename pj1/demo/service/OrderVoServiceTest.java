@@ -38,13 +38,14 @@ public class OrderVoServiceTest {
         MockitoAnnotations.openMocks(this);
     }
 
-    // 等价类划分：正常订单视图转换
+    // 测试用例分组1: returnOrderVoByOrderID方法
+    // TC1.1: 获取单个订单视图 - 正常场景
     @Test
-    void testReturnOrderVoByOrderID_NormalCase() {
+    void testReturnOrderVoByOrderID_Success() {
         // Arrange
         Order order = createTestOrder(1, "user1", 1, 2, 200);
         Venue venue = createTestVenue(1, "TestVenue");
-
+        
         when(orderDao.findByOrderID(1)).thenReturn(order);
         when(venueDao.findByVenueID(1)).thenReturn(venue);
 
@@ -56,6 +57,30 @@ public class OrderVoServiceTest {
         assertEquals("TestVenue", result.getVenueName());
         assertEquals("user1", result.getUserID());
         assertEquals(200.0, result.getTotal());
+    }
+
+    // TC1.2: 获取单个订单视图 - 订单不存在
+    @Test
+    void testReturnOrderVoByOrderID_OrderNotFound() {
+        // Arrange
+        when(orderDao.findByOrderID(999)).thenReturn(null);
+
+        // Act & Assert
+        Exception exception = assertThrows(NullPointerException.class, () -> 
+            orderVoService.returnOrderVoByOrderID(999));
+    }
+
+    // TC1.3: 获取单个订单视图 - 场馆不存在
+    @Test
+    void testReturnOrderVoByOrderID_VenueNotFound() {
+        // Arrange
+        Order order = createTestOrder(1, "user1", 1, 2, 200);
+        when(orderDao.findByOrderID(1)).thenReturn(order);
+        when(venueDao.findByVenueID(1)).thenReturn(null);
+
+        // Act & Assert
+        Exception exception = assertThrows(NullPointerException.class, () -> 
+            orderVoService.returnOrderVoByOrderID(1));
     }
 
     // 语句覆盖：订单列表转换
@@ -83,7 +108,33 @@ public class OrderVoServiceTest {
         assertEquals("Venue2", result.get(1).getVenueName());
     }
 
-    // 边界值测试：空订单列表
+    // 测试用例分组2: returnVo方法
+    // TC2.1: 获取多个订单视图 - 正常场景
+    @Test
+    void testReturnVo_Success() {
+        // Arrange
+        Order order1 = createTestOrder(1, "user1", 1, 2, 200);
+        Order order2 = createTestOrder(2, "user2", 2, 3, 300);
+        List<Order> orders = Arrays.asList(order1, order2);
+
+        Venue venue1 = createTestVenue(1, "Venue1");
+        Venue venue2 = createTestVenue(2, "Venue2");
+
+        when(orderDao.findByOrderID(1)).thenReturn(order1);
+        when(orderDao.findByOrderID(2)).thenReturn(order2);
+        when(venueDao.findByVenueID(1)).thenReturn(venue1);
+        when(venueDao.findByVenueID(2)).thenReturn(venue2);
+
+        // Act
+        List<OrderVo> result = orderVoService.returnVo(orders);
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals("Venue1", result.get(0).getVenueName());
+        assertEquals("Venue2", result.get(1).getVenueName());
+    }
+
+    // TC2.2: 获取多个订单视图 - 空列表
     @Test
     void testReturnVo_EmptyList() {
         List<Order> emptyList = Arrays.asList();
@@ -91,28 +142,24 @@ public class OrderVoServiceTest {
         assertTrue(result.isEmpty());
     }
 
-    // 异常情况测试：订单不存在
+    // TC2.3: 获取多个订单视图 - 列表中包含无效订单
     @Test
-    void testReturnOrderVoByOrderID_OrderNotFound() {
+    void testReturnVo_InvalidOrderInList() {
         // Arrange
-        when(orderDao.findByOrderID(999)).thenReturn(null);
+        Order validOrder = createTestOrder(1, "user1", 1, 2, 200);
+        Order invalidOrder = createTestOrder(2, "user2", 999, 3, 300);
+        List<Order> orders = Arrays.asList(validOrder, invalidOrder);
+
+        Venue venue1 = createTestVenue(1, "Venue1");
+        
+        when(orderDao.findByOrderID(1)).thenReturn(validOrder);
+        when(orderDao.findByOrderID(2)).thenReturn(invalidOrder);
+        when(venueDao.findByVenueID(1)).thenReturn(venue1);
+        when(venueDao.findByVenueID(999)).thenReturn(null);
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> 
-            orderVoService.returnOrderVoByOrderID(999));
-    }
-
-    // 异常情况测试：场馆不存在
-    @Test
-    void testReturnOrderVoByOrderID_VenueNotFound() {
-        // Arrange
-        Order order = createTestOrder(1, "user1", 1, 2, 200);
-        when(orderDao.findByOrderID(1)).thenReturn(order);
-        when(venueDao.findByVenueID(1)).thenReturn(null);
-
-        // Act & Assert
-        assertThrows(RuntimeException.class, () -> 
-            orderVoService.returnOrderVoByOrderID(1));
+        Exception exception = assertThrows(NullPointerException.class, () -> 
+            orderVoService.returnVo(orders));
     }
 
     // 边界值测试：不同状态的订单
