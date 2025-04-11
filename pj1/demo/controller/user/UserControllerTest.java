@@ -14,6 +14,9 @@ import org.springframework.test.annotation.Rollback;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -134,6 +137,127 @@ public class UserControllerTest {
         assertEquals("New User", newUser.getUserName());
     }
 
+    // 用户注册边界测试
+    @Test
+    void testRegister_InvalidInput() throws Throwable {
+        try {
+            // 测试空用户名
+            mockMvc.perform(post("/register.do")
+                    .param("userID", "")
+                    .param("userName", "Test User")
+                    .param("password", "password")
+                    .param("email", "test@example.com")
+                    .param("phone", "12345678901")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(result -> {
+                        Exception exception = result.getResolvedException();
+                        assertNotNull(exception);
+                        assertTrue(exception instanceof IllegalArgumentException);
+                        assertEquals("UserID cannot be empty", exception.getMessage());
+                    })
+                    .andDo(print());
+
+            // 测试无效邮箱格式
+            mockMvc.perform(post("/register.do")
+                    .param("userID", "testUser")
+                    .param("userName", "Test User")
+                    .param("password", "password")
+                    .param("email", "invalid-email")
+                    .param("phone", "12345678901")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(result -> {
+                        Exception exception = result.getResolvedException();
+                        assertNotNull(exception);
+                        assertTrue(exception instanceof IllegalArgumentException);
+                        assertEquals("Invalid email format", exception.getMessage());
+                    });
+
+            // 测试无效手机号
+            mockMvc.perform(post("/register.do")
+                    .param("userID", "testUser")
+                    .param("userName", "Test User")
+                    .param("password", "password")
+                    .param("email", "test@example.com")
+                    .param("phone", "123")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(result -> {
+                        Exception exception = result.getResolvedException();
+                        assertNotNull(exception);
+                        assertTrue(exception instanceof IllegalArgumentException);
+                        assertEquals("Invalid phone number format", exception.getMessage());
+                    });
+        } catch (Exception e) {
+            if (e.getCause() instanceof IllegalArgumentException) {
+                throw e.getCause();
+            }
+            throw e;
+        }
+    }
+
+    // 并发测试 - 用户注册
+    @Test
+    void testRegister_ConcurrentUsers() throws Exception {
+        String baseUserID = "concurrent_user_";
+        List<Thread> threads = new ArrayList<>();
+        
+        // 创建多个并发注册请求
+        for (int i = 0; i < 10; i++) {
+            final int index = i;
+            threads.add(new Thread(() -> {
+                try {
+                    mockMvc.perform(post("/register.do")
+                            .param("userID", baseUserID + index)
+                            .param("userName", "Concurrent User " + index)
+                            .param("password", "password" + index)
+                            .param("email", "user" + index + "@example.com")
+                            .param("phone", "1234567890" + index)
+                            .contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                            .andExpect(status().is3xxRedirection());
+                } catch (Exception e) {
+                    fail("Concurrent registration failed: " + e.getMessage());
+                }
+            }));
+        }
+
+        // 启动所有线程
+        threads.forEach(Thread::start);
+        
+        // 等待所有线程完成
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        // 验证所有用户是否成功注册
+        for (int i = 0; i < 10; i++) {
+            User user = userService.findByUserID(baseUserID + i);
+            assertNotNull(user);
+            assertEquals("Concurrent User " + i, user.getUserName());
+        }
+    }
+
+    // 安全测试 - XSS防护
+    @Test
+    void testRegister_XSSAttempt() throws Exception {
+        String xssUserName = "<script>alert('xss')</script>";
+        
+        mockMvc.perform(post("/register.do")
+                .param("userID", "xssUser")
+                .param("userName", xssUserName)
+                .param("password", "password")
+                .param("email", "xss@example.com")
+                .param("phone", "12345678901")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                .andExpect(status().is3xxRedirection());
+
+        User user = userService.findByUserID("xssUser");
+        assertNotNull(user);
+        assertNotEquals(xssUserName, user.getUserName());
+        assertTrue(user.getUserName().contains("&lt;script&gt;"));
+    }
+
     @Test
     void testLogout() throws Exception {
         mockMvc.perform(get("/logout.do")
@@ -176,6 +300,76 @@ public class UserControllerTest {
         User updatedUser = userService.findByUserID(testUser.getUserID());
         assertEquals("Updated User", updatedUser.getUserName());
         assertEquals("updated@example.com", updatedUser.getEmail());
+    }
+
+    // 文件上传测试
+    @Test
+    void testUpdateUser_InvalidFile() throws Throwable {
+        // 测试不支持的文件类型
+        MockMultipartFile invalidFile = new MockMultipartFile(
+                "picture",
+                "test.exe",
+                MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                "test content".getBytes()
+        );
+
+        try {
+            mockMvc.perform(multipart("/updateUser.do")
+                    .file(invalidFile)
+                    .param("userID", testUser.getUserID())
+                    .param("userName", "Updated User")
+                    .param("passwordNew", "newpassword")
+                    .param("email", "updated@example.com")
+                    .param("phone", "12345678904")
+                    .session(userSession))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(result -> {
+                        Exception exception = result.getResolvedException();
+                        assertNotNull(exception);
+                        assertTrue(exception instanceof IllegalArgumentException);
+                        assertEquals("Unsupported file type", exception.getMessage());
+                    });
+        } catch (Exception e) {
+            if (e.getCause() instanceof IllegalArgumentException) {
+                throw e.getCause();
+            }
+            throw e;
+        }
+    }
+
+    // 会话管理测试
+    @Test
+    void testSession_Expiry() throws Exception {
+        // 创建过期会话
+        MockHttpSession expiredSession = new MockHttpSession();
+        expiredSession.setAttribute("user", testUser);
+        expiredSession.setMaxInactiveInterval(1); // 1秒后过期
+        
+        Thread.sleep(2000); // 等待会话过期
+
+        mockMvc.perform(get("/user_info")
+                .session(expiredSession))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"))
+                .andDo(print());
+    }
+
+    // 性能测试
+    @Test
+    void testLogin_Performance() throws Exception {
+        long startTime = System.currentTimeMillis();
+        
+        for (int i = 0; i < 100; i++) {
+            mockMvc.perform(post("/loginCheck.do")
+                    .param("userID", testUser.getUserID())
+                    .param("password", testUser.getPassword())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                    .andExpect(status().isOk());
+        }
+
+        long duration = System.currentTimeMillis() - startTime;
+        assertTrue(duration < 2000, 
+            "Performance test failed: " + duration + "ms > 2000ms");
     }
 
     @Test
